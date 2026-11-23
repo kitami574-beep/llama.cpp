@@ -289,6 +289,9 @@ const std::vector<ggml_type> kv_cache_types = {
     GGML_TYPE_IQ4_NL,
     GGML_TYPE_Q5_0,
     GGML_TYPE_Q5_1,
+    GGML_TYPE_TURBO2_0,
+    GGML_TYPE_TURBO3_0,
+    GGML_TYPE_TURBO4_0,
 };
 
 static ggml_type kv_cache_type_from_str(const std::string & s) {
@@ -2443,6 +2446,28 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             params.cache_type_v = kv_cache_type_from_str(value);
         }
     ).set_env("LLAMA_ARG_CACHE_TYPE_V"));
+    add_opt(common_arg(
+        {"-ctks", "--cache-type-k-swa"}, "TYPE",
+        string_format(
+            "KV cache data type for K in SWA layers (default: same as --cache-type-k)\n"
+            "allowed values: %s",
+            get_all_kv_cache_types().c_str()
+        ),
+        [](common_params & params, const std::string & value) {
+            params.cache_type_k_swa = kv_cache_type_from_str(value);
+        }
+    ).set_env("LLAMA_ARG_CACHE_TYPE_K_SWA"));
+    add_opt(common_arg(
+        {"-ctvs", "--cache-type-v-swa"}, "TYPE",
+        string_format(
+            "KV cache data type for V in SWA layers (default: same as --cache-type-v)\n"
+            "allowed values: %s",
+            get_all_kv_cache_types().c_str()
+        ),
+        [](common_params & params, const std::string & value) {
+            params.cache_type_v_swa = kv_cache_type_from_str(value);
+        }
+    ).set_env("LLAMA_ARG_CACHE_TYPE_V_SWA"));
     add_opt(common_arg(
         {"--hellaswag"},
         "compute HellaSwag score over random tasks from datafile supplied with -f",

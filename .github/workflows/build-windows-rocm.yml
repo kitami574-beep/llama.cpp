@@ -1,0 +1,144 @@
+name: Build Windows 11 ROCm (TurboQuant + RDNA 4)
+
+on:
+  workflow_dispatch:
+    inputs:
+      rocm_version:
+        description: "ROCm Version"
+        required: true
+        default: "10.2.0"
+        type: choice
+        options:
+          - "10.2.0"
+          - "10.1.0"
+          - "10.0.0"
+      gpu_targets:
+        description: "AMD GPU Targets (semicolon-separated)"
+        required: true
+        default: "gfx1201;gfx1200;gfx1100"
+      build_full_tools:
+        description: "Build full tool suite (llama-cli, llama-server, llama-bench)"
+        required: false
+        default: true
+        type: boolean
+  push:
+    paths:
+      - 'ggml/**'
+      - 'src/**'
+      - 'common/**'
+      - '.github/workflows/build-windows-rocm.yml'
+
+jobs:
+  windows-rocm-rdna4:
+    runs-on: windows-2022
+
+    env:
+      ROCM_VERSION: ${{ inputs.rocm_version || '10.2.0' }}
+      GPU_TARGETS: ${{ inputs.gpu_targets || 'gfx1201;gfx1200;gfx1100' }}
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Ninja
+        run: |
+          choco install ninja --no-progress
+
+      - name: Setup ROCm via TheRock wheels
+        uses: ./.github/actions/windows-setup-rocm
+        with:
+          version: ${{ env.ROCM_VERSION }}
+
+      - name: Setup ROCm Environment
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          # Activate venv
+          & C:\TheRock\build\.venv\Scripts\Activate.ps1
+
+          # Expand devel tree
+          rocm-sdk init
+          if ($LASTEXITCODE -ne 0) { throw "rocm-sdk init failed" }
+
+          $rocmPath = (rocm-sdk path --root).Trim()
+          $cmakePath = (rocm-sdk path --cmake).Trim()
+          $binPath = (rocm-sdk path --bin).Trim()
+
+          write-host "ROCm root: $rocmPath"
+          write-host "CMake path: $cmakePath"
+          write-host "Bin path: $binPath"
+
+          echo "HIP_PATH=$rocmPath" >> $env:GITHUB_ENV
+          echo "CMAKE_PREFIX_PATH=$cmakePath" >> $env:GITHUB_ENV
+          echo "HIP_DEVICE_LIB_PATH=$rocmPath\lib\llvm\amdgcn\bitcode" >> $env:GITHUB_ENV
+          echo "HIP_PLATFORM=amd" >> $env:GITHUB_ENV
+          echo "LLVM_PATH=$rocmPath\lib\llvm" >> $env:GITHUB_ENV
+          echo "$binPath" >> $env:GITHUB_PATH
+          echo "C:\TheRock\build\.venv\Scripts" >> $env:GITHUB_PATH
+
+      - name: Verify Clang & ROCm
+        run: |
+          & "${env:HIP_PATH}\lib\llvm\bin\clang.exe" --version
+
+      - name: Setup ccache
+        uses: ggml-org/ccache-action@v1.2.24
+        with:
+          key: win11-rocm-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGETS }}
+          evict-old-files: 1d
+          max-size: "2G"
+
+      - name: Tune ccache for ROCm
+        run: |
+          ccache --set-config=depend_mode=true
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build `
+            -G "Ninja Multi-Config" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="${env:HIP_PATH}" `
+            -DGGML_BACKEND_DL=ON `
+            -DGGML_HIP=ON `
+            -DCMAKE_C_COMPILER="${env:HIP_PATH}\lib\llvm\bin\clang.exe" `
+            -DCMAKE_CXX_COMPILER="${env:HIP_PATH}\lib\llvm\bin\clang++.exe" `
+            -DCMAKE_HIP_COMPILER="${env:HIP_PATH}\lib\llvm\bin\clang.exe" `
+            -DCMAKE_C_FLAGS="-Wno-error=incompatible-pointer-types" `
+            -DHIP_PATH="${env:HIP_PATH}" `
+            -DAMDGPU_TARGETS="${env:GPU_TARGETS}" `
+            -DLLAMA_BUILD_COMMON=ON `
+            -DLLAMA_BUILD_SERVER=ON
+
+      - name: Build llama.cpp with TurboQuant HIP Backend
+        run: |
+          cmake --build build --config Release --parallel ${env:NUMBER_OF_PROCESSORS} --target ggml-hip llama-cli llama-server llama-bench
+
+      - name: Bundle Runtime DLLs
+        run: |
+          $ErrorActionPreference = "Stop"
+          $binPath = (rocm-sdk path --bin).Trim()
+          $patterns = @("amdhip64_7.dll", "rocm_kpack.dll", "amd_comgr.dll")
+          foreach ($pattern in $patterns) {
+            $files = Get-ChildItem -Path $binPath -Filter $pattern -ErrorAction SilentlyContinue
+            if ($files) {
+              foreach ($f in $files) {
+                Copy-Item $f.FullName -Destination build\bin\Release -Force
+                write-host "Copied runtime DLL: $($f.Name)"
+              }
+            }
+          }
+
+      - name: Pack Windows Artifacts
+        run: |
+          $zipName = "llama-turboquant-win11-rocm${{ env.ROCM_VERSION }}-rdna4-x64.zip"
+          Write-Host "Creating $zipName..."
+          7z a -tzip $zipName .\build\bin\Release\*
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-turboquant-win11-rocm${{ env.ROCM_VERSION }}-rdna4-x64
+          path: llama-turboquant-win11-rocm${{ env.ROCM_VERSION }}-rdna4-x64.zip
+          if-no-files-found: error

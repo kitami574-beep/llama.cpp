@@ -616,6 +616,9 @@ struct common_params {
     ggml_type cache_type_k = GGML_TYPE_F16; // KV cache data type for the K
     ggml_type cache_type_v = GGML_TYPE_F16; // KV cache data type for the V
 
+    ggml_type cache_type_k_swa = GGML_TYPE_COUNT; // KV cache data type for K in SWA layers (COUNT = use cache_type_k)
+    ggml_type cache_type_v_swa = GGML_TYPE_COUNT; // KV cache data type for V in SWA layers (COUNT = use cache_type_v)
+
     size_t moe_cache_size      = 0;    // GPU cache size in bytes for the MoE experts kept in the CPU, split among the GPUs like the layers
     float  moe_cache_cpu_share = 0.0f; // share of the MoE cache misses computed on the CPU instead of uploaded
 

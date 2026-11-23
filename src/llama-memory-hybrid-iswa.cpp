@@ -14,6 +14,8 @@ llama_memory_hybrid_iswa::llama_memory_hybrid_iswa(
                             /* attn */
                 ggml_type   type_k,
                 ggml_type   type_v,
+                ggml_type   type_k_swa,
+                ggml_type   type_v_swa,
                      bool   v_trans,
                      bool   swa_full,
                  uint32_t   kv_size,
@@ -36,6 +38,8 @@ llama_memory_hybrid_iswa::llama_memory_hybrid_iswa(
         no_alloc,
         type_k,
         type_v,
+        type_k_swa,
+        type_v_swa,
         v_trans,
         offload,
         swa_full,
@@ -284,3 +288,16 @@ const llama_kv_cache_iswa_context * llama_memory_hybrid_iswa_context::get_attn()
 const llama_memory_recurrent_context * llama_memory_hybrid_iswa_context::get_recr() const {
     return static_cast<const llama_memory_recurrent_context *>(ctx_recr.get());
 }
+
+ggml_tensor * llama_memory_hybrid_iswa_context::get_turbo_rot_forward() const {
+    return ctx_attn ? ctx_attn->get_turbo_rot_forward() : nullptr;
+}
+
+ggml_tensor * llama_memory_hybrid_iswa_context::get_turbo_rot_inverse() const {
+    return ctx_attn ? ctx_attn->get_turbo_rot_inverse() : nullptr;
+}
+
+ggml_tensor * llama_memory_hybrid_iswa_context::get_turbo_innerq_scale_inv() const {
+    return ctx_attn ? ctx_attn->get_turbo_innerq_scale_inv() : nullptr;
+}
+

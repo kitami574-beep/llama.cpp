@@ -1,6 +1,6 @@
 #pragma once
 
-#define HIP_ENABLE_WARP_SYNC_BUILTINS 1
+#define HIP_DISABLE_WARP_SYNC_BUILTINS 1
 #include <hip/hip_runtime.h>
 #include <hipblas/hipblas.h>
 #include <hip/hip_fp16.h>
@@ -32,6 +32,34 @@ typedef uint64_t ggml_cuda_thread_mask_t;
 #define CU_MEM_LOCATION_TYPE_DEVICE hipMemLocationTypeDevice
 #define CU_MEM_ACCESS_FLAGS_PROT_READWRITE hipMemAccessFlagsProtReadWrite
 #define CU_CHECK(fn) {hipError_t err = fn; if(err != hipSuccess) { GGML_ABORT("HipVMM Failure: %s\n", hipGetErrorString(err)); }}
+// __shfl_sync: support both 3-arg (mask, var, srcLane) and 4-arg (mask, var, srcLane, width) calls
+// HIP ignores the mask but requires it to be 64-bit, so we cast explicitly.
+#define __SHFL_SYNC_3(mask, var, srcLane)        __shfl(var, srcLane, warpSize)
+#define __SHFL_SYNC_4(mask, var, srcLane, width) __shfl(var, srcLane, width)
+#define __SHFL_GET_MACRO(_1, _2, _3, _4, NAME, ...) NAME
+#define __shfl_sync(...) __SHFL_GET_MACRO(__VA_ARGS__, __SHFL_SYNC_4, __SHFL_SYNC_3)(__VA_ARGS__)
+
+// __shfl_up_sync: support 3-arg and 4-arg calls (HIP ignores mask)
+#define __SHFL_UP_SYNC_3(mask, var, delta)        __shfl_up(var, delta, warpSize)
+#define __SHFL_UP_SYNC_4(mask, var, delta, width) __shfl_up(var, delta, width)
+#define __SHFL_UP_GET(_1, _2, _3, _4, NAME, ...) NAME
+#define __shfl_up_sync(...) __SHFL_UP_GET(__VA_ARGS__, __SHFL_UP_SYNC_4, __SHFL_UP_SYNC_3)(__VA_ARGS__)
+
+// __shfl_xor_sync: support 3-arg and 4-arg calls (HIP ignores mask)
+#define __SHFL_XOR_SYNC_3(mask, var, laneMask)        __shfl_xor(var, laneMask, warpSize)
+#define __SHFL_XOR_SYNC_4(mask, var, laneMask, width) __shfl_xor(var, laneMask, width)
+#define __SHFL_XOR_GET(_1, _2, _3, _4, NAME, ...) NAME
+#define __shfl_xor_sync(...) __SHFL_XOR_GET(__VA_ARGS__, __SHFL_XOR_SYNC_4, __SHFL_XOR_SYNC_3)(__VA_ARGS__)
+
+// __shfl_down_sync: support 3-arg and 4-arg calls (HIP ignores mask)
+#define __SHFL_DOWN_SYNC_3(mask, var, delta)        __shfl_down(var, delta, warpSize)
+#define __SHFL_DOWN_SYNC_4(mask, var, delta, width) __shfl_down(var, delta, width)
+#define __SHFL_DOWN_GET(_1, _2, _3, _4, NAME, ...) NAME
+#define __shfl_down_sync(...) __SHFL_DOWN_GET(__VA_ARGS__, __SHFL_DOWN_SYNC_4, __SHFL_DOWN_SYNC_3)(__VA_ARGS__)
+
+#define __all_sync(mask, var) __all(var)
+#define __any_sync(mask, var) __any(var)
+#define __ballot_sync(mask, var) ((uint32_t)__ballot(var))
 #define cublasStrsmBatched hipblasStrsmBatched
 #define cublasCreate hipblasCreate
 #define cublasDestroy hipblasDestroy
@@ -98,6 +126,8 @@ typedef uint64_t ggml_cuda_thread_mask_t;
 #define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
 #define cudaMemcpyHostToDevice hipMemcpyHostToDevice
 #define cudaMemcpyKind hipMemcpyKind
+#define cudaMemcpyToSymbol hipMemcpyToSymbol
+#define cudaMemcpyFromSymbol hipMemcpyFromSymbol
 #define cudaMemset hipMemset
 #define cudaMemsetAsync hipMemsetAsync
 #define cudaMemGetInfo hipMemGetInfo
@@ -137,6 +167,9 @@ typedef uint64_t ggml_cuda_thread_mask_t;
 #define cudaGraphNodeTypeKernel hipGraphNodeTypeKernel
 #define cudaGraphInstantiate hipGraphInstantiate
 #define cudaStreamEndCapture hipStreamEndCapture
+#define cudaStreamCaptureStatus hipStreamCaptureStatus
+#define cudaStreamIsCapturing hipStreamIsCapturing
+#define cudaStreamCaptureStatusNone hipStreamCaptureStatusNone
 #define cudaGraphDestroy hipGraphDestroy
 #define cudaGraphKernelNodeSetParams hipGraphKernelNodeSetParams
 #define cudaErrorInvalidDeviceFunction hipErrorInvalidDeviceFunction

@@ -24,6 +24,8 @@ public:
                             /* attn */
                 ggml_type   type_k,
                 ggml_type   type_v,
+                ggml_type   type_k_swa,
+                ggml_type   type_v_swa,
                      bool   v_trans,
                      bool   swa_full,
                  uint32_t   kv_size,
@@ -127,6 +129,10 @@ public:
 
     const llama_kv_cache_iswa_context * get_attn() const;
     const llama_memory_recurrent_context * get_recr() const;
+
+    ggml_tensor * get_turbo_rot_forward() const override;
+    ggml_tensor * get_turbo_rot_inverse() const override;
+    ggml_tensor * get_turbo_innerq_scale_inv() const override;
 
 private:
     // the index of the next ubatch to process

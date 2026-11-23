@@ -18,6 +18,8 @@ public:
                          bool   no_alloc,
                     ggml_type   type_k,
                     ggml_type   type_v,
+                    ggml_type   type_k_swa,
+                    ggml_type   type_v_swa,
                          bool   v_trans,
                          bool   offload,
                          bool   swa_full,
@@ -25,10 +27,49 @@ public:
                      uint32_t   kv_size,
                      uint32_t   n_seq_max,
                      uint32_t   n_ubatch,
-               llama_memory_t   mem_other,
-        const layer_filter_cb & filter,
-        const  layer_reuse_cb & reuse,
-        const  layer_share_cb & share);
+               llama_memory_t   mem_other = nullptr,
+        const layer_filter_cb & filter = nullptr,
+        const  layer_reuse_cb & reuse = nullptr,
+        const  layer_share_cb & share = nullptr);
+
+    llama_kv_cache_iswa(
+            const llama_model & model,
+                         bool   no_alloc,
+                    ggml_type   type_k,
+                    ggml_type   type_v,
+                         bool   v_trans,
+                         bool   offload,
+                         bool   swa_full,
+                         bool   unified,
+                     uint32_t   kv_size,
+                     uint32_t   n_seq_max,
+                     uint32_t   n_ubatch,
+               llama_memory_t   mem_other = nullptr,
+        const layer_filter_cb & filter = nullptr,
+        const  layer_reuse_cb & reuse = nullptr,
+        const  layer_share_cb & share = nullptr) :
+        llama_kv_cache_iswa(model, no_alloc, type_k, type_v, GGML_TYPE_COUNT, GGML_TYPE_COUNT,
+            v_trans, offload, swa_full, unified, kv_size, n_seq_max, n_ubatch, mem_other, filter, reuse, share) {}
+
+    llama_kv_cache_iswa(
+            const llama_model & model,
+                         bool   no_alloc,
+          const llama_hparams & hparams,
+                    ggml_type   type_k,
+                    ggml_type   type_v,
+                    ggml_type   type_k_swa,
+                    ggml_type   type_v_swa,
+                         bool   v_trans,
+                         bool   offload,
+                         bool   swa_full,
+                         bool   unified,
+                     uint32_t   kv_size,
+                     uint32_t   n_seq_max,
+                     uint32_t   n_ubatch,
+               llama_memory_t   mem_other = nullptr,
+        const layer_filter_cb & filter = nullptr,
+        const  layer_reuse_cb & reuse = nullptr,
+        const  layer_share_cb & share = nullptr);
 
     llama_kv_cache_iswa(
             const llama_model & model,
@@ -43,10 +84,12 @@ public:
                      uint32_t   kv_size,
                      uint32_t   n_seq_max,
                      uint32_t   n_ubatch,
-               llama_memory_t   mem_other,
-        const layer_filter_cb & filter,
-        const  layer_reuse_cb & reuse,
-        const  layer_share_cb & share);
+               llama_memory_t   mem_other = nullptr,
+        const layer_filter_cb & filter = nullptr,
+        const  layer_reuse_cb & reuse = nullptr,
+        const  layer_share_cb & share = nullptr) :
+        llama_kv_cache_iswa(model, no_alloc, hparams, type_k, type_v, GGML_TYPE_COUNT, GGML_TYPE_COUNT,
+            v_trans, offload, swa_full, unified, kv_size, n_seq_max, n_ubatch, mem_other, filter, reuse, share) {}
 
     ~llama_kv_cache_iswa() = default;
 
@@ -132,6 +175,11 @@ public:
 
     llama_memory_status  get_status() const override;
     const llama_ubatch & get_ubatch() const override;
+
+    // TurboQuant rotation accessors
+    ggml_tensor * get_turbo_rot_forward() const override;
+    ggml_tensor * get_turbo_rot_inverse() const override;
+    ggml_tensor * get_turbo_innerq_scale_inv() const override;
 
     //
     // llama_kv_cache_iswa_context specific API
