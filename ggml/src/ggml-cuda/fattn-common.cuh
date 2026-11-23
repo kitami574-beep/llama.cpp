@@ -535,54 +535,6 @@ static __device__ __forceinline__ void quantize_q8_1_to_shared(
     }
 #pragma unroll
     for (int mask = QI8_1/2; mask > 0; mask >>= 1) {
-        amax = fmaxf(amax, __shfl_xor_sync(0xFFFFFFFF, amax, mask, 32));
-        sum +=             __shfl_xor_sync(0xFFFFFFFF, sum,  mask, 32);
-    }
-
-    const float d = amax / 127;
-    int q32 = 0;
-    int8_t * q8 = (int8_t *) &q32;
-
-    if (d != 0.0f) {
-#pragma unroll
-        for (int l = 0; l < int(sizeof(int)); ++l) {
-            q8[l] = roundf(vals[l] / d);
-        }
-    }
-
-    yq32[threadIdx.x] = q32;
-    if (threadIdx.x % QI8_1 == 0 && (ni == WARP_SIZE || threadIdx.x < ni)) {
-        if (std::is_same<Tds, half2>::value) {
-            ((half2  *) yds)[threadIdx.x/QI8_1] =  make_half2(d, sum);
-        } else {
-            ((float2 *) yds)[threadIdx.x/QI8_1] = make_float2(d, sum);
-        }
-    }
-}
-
-typedef void (*dequantize_V_t)(const void *, void *, const int64_t);
-
-
-
-template <typename Tds, int ni>
-static __device__ __forceinline__ void quantize_q8_1_to_shared(
-    const float * __restrict__ x, const float scale, int * __restrict__ yq32, void * __restrict__ yds) {
-
-    float vals[sizeof(int)] = {0.0f};
-#pragma unroll
-    for (int l = 0; l < int(sizeof(int)); ++l) {
-        vals[l] = (ni == WARP_SIZE || threadIdx.x < ni) ? scale * x[4*threadIdx.x + l] : 0.0f;
-    }
-
-    float amax = fabsf(vals[0]);
-    float sum  = vals[0];
-#pragma unroll
-    for (int l = 1; l < int(sizeof(int)); ++l) {
-        amax = fmaxf(amax, fabsf(vals[l]));
-        sum += vals[l];
-    }
-#pragma unroll
-    for (int mask = QI8_1/2; mask > 0; mask >>= 1) {
         amax = fmaxf(amax, ggml_cuda_shfl_xor(amax, mask, 32));
         sum +=             ggml_cuda_shfl_xor(sum,  mask, 32);
     }
