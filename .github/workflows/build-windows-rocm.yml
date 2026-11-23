@@ -15,7 +15,7 @@ on:
       gpu_targets:
         description: "AMD GPU Targets (semicolon-separated)"
         required: true
-        default: "gfx1201;gfx1200;gfx1100"
+        default: "gfx1201;gfx1200"
       build_full_tools:
         description: "Build full tool suite (llama-cli, llama-server, llama-bench)"
         required: false
@@ -34,7 +34,7 @@ jobs:
 
     env:
       ROCM_VERSION: ${{ inputs.rocm_version || '10.2.0' }}
-      GPU_TARGETS: ${{ inputs.gpu_targets || 'gfx1201;gfx1200;gfx1100' }}
+      GPU_TARGETS: ${{ inputs.gpu_targets || 'gfx1201;gfx1200' }}
 
     steps:
       - name: Checkout
@@ -79,6 +79,13 @@ jobs:
           echo "$binPath" >> $env:GITHUB_PATH
           echo "C:\TheRock\build\.venv\Scripts" >> $env:GITHUB_PATH
 
+          # Locate mt.exe from Windows Kits for manifest embedding
+          $mt = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "mt.exe" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.DirectoryName -match 'x64' } | Select-Object -First 1
+          if ($mt) {
+            write-host "Found mt.exe: $($mt.FullName)"
+            echo "$($mt.DirectoryName)" >> $env:GITHUB_PATH
+          }
+
       - name: Verify Clang & ROCm
         run: |
           & "${env:HIP_PATH}\lib\llvm\bin\clang.exe" --version
@@ -110,6 +117,9 @@ jobs:
             -DCMAKE_C_FLAGS="-Wno-error=incompatible-pointer-types" `
             -DHIP_PATH="${env:HIP_PATH}" `
             -DAMDGPU_TARGETS="${env:GPU_TARGETS}" `
+            -DLLAMA_BUILD_TESTS=OFF `
+            -DLLAMA_BUILD_EXAMPLES=OFF `
+            -DLLAMA_BUILD_TOOLS=ON `
             -DLLAMA_BUILD_COMMON=ON `
             -DLLAMA_BUILD_SERVER=ON
 
